@@ -1,0 +1,23 @@
+
+cd C:\Users\user\suems-ines
+
+# Create folders
+mkdir frontend
+mkdir backend-node
+mkdir backend-python
+
+# Create .gitignore
+echo.>.gitignore
+notepad .gitignore
+# ---- Node.js ----
+node_modules/
+npm-debug.log
+.env
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+*.sqlite3
