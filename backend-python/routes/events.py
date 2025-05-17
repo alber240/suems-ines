@@ -57,3 +57,62 @@ def create_event():
         return jsonify({"error": str(e)}), 400
     finally:
         conn.close()
+
+@events.route('/api/events/<int:event_id>/register', methods=['POST'])
+def register_for_event(event_id):
+    data = request.get_json()
+    user_id = data.get('user_id')
+
+    conn = sqlite3.connect("suems.db")
+    cursor = conn.cursor()
+
+    # 1. Get user details
+    cursor.execute("""
+        SELECT role, faculty, department, nationality 
+        FROM users WHERE user_id = ?
+    """, (user_id,))
+    user = cursor.fetchone()
+    if not user:
+        conn.close()
+        return jsonify({"error": "User not found."}), 404
+
+    user_role, user_faculty, user_department, user_nationality = user
+
+    # 2. Get event eligibility
+    cursor.execute("""
+        SELECT target_roles, faculty, department, nationality 
+        FROM events WHERE event_id = ?
+    """, (event_id,))
+    event = cursor.fetchone()
+    if not event:
+        conn.close()
+        return jsonify({"error": "Event not found."}), 404
+
+    target_roles, target_faculty, target_department, target_nationality = event
+
+    # 3. Eligibility checks
+    if target_roles and target_roles != user_role:
+        return jsonify({"error": f"This event is for {target_roles} only."}), 403
+
+    if target_faculty and target_faculty != user_faculty:
+        return jsonify({"error": f"This event is only for Faculty of {target_faculty}."}), 403
+
+    if target_department and target_department != user_department:
+        return jsonify({"error": f"This event is only for {target_department} department."}), 403
+
+    if target_nationality and target_nationality != user_nationality:
+        return jsonify({"error": f"This event is only for {target_nationality} participants."}), 403
+
+    # 4. Register
+    try:
+        cursor.execute("""
+            INSERT INTO registrations (user_id, event_id)
+            VALUES (?, ?)
+        """, (user_id, event_id))
+        conn.commit()
+        return jsonify({"message": "Successfully registered for the event."}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Already registered for this event."}), 409
+    finally:
+        conn.close()
+
