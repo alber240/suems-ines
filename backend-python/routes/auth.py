@@ -7,39 +7,32 @@ auth = Blueprint('auth', __name__)
 def register():
     data = request.get_json()
     name = data.get('name')
+    registration_no = data.get('registration_no')
     email = data.get('email')
     phone = data.get('phone')
     password = data.get('password')
     role = data.get('role', 'Student')
+    nationality = data.get('nationality')
+    faculty = data.get('faculty')
+    department = data.get('department')
 
     conn = sqlite3.connect("suems.db")
     cursor = conn.cursor()
 
     try:
-        cursor.execute(
-            "INSERT INTO users (name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)",
-            (name, email, phone, password, role)
-        )
+        cursor.execute("""
+            INSERT INTO users 
+            (name, registration_no, email, phone, password, role, nationality, faculty, department) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (name, registration_no, email, phone, password, role, nationality, faculty, department))
         conn.commit()
         return jsonify({"message": "User registered successfully."}), 201
-    except sqlite3.IntegrityError:
-        return jsonify({"error": "Email already exists."}), 409
+    except sqlite3.IntegrityError as e:
+        if "UNIQUE constraint failed: users.registration_no" in str(e):
+            return jsonify({"error": "Registration number already exists."}), 409
+        elif "UNIQUE constraint failed: users.email" in str(e):
+            return jsonify({"error": "Email already exists."}), 409
+        else:
+            return jsonify({"error": "Registration failed."}), 400
     finally:
         conn.close()
-
-@auth.route('/api/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    email = data.get('email')
-    password = data.get('password')
-
-    conn = sqlite3.connect("suems.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE email = ? AND password = ?", (email, password))
-    user = cursor.fetchone()
-    conn.close()
-
-    if user:
-        return jsonify({"message": "Login successful", "user_id": user[0], "role": user[5]})
-    else:
-        return jsonify({"error": "Invalid credentials"}), 401
