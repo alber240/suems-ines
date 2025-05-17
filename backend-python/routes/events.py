@@ -57,6 +57,7 @@ def create_event():
         return jsonify({"error": str(e)}), 400
     finally:
         conn.close()
+        conn.close()
 
 @events.route('/api/events/<int:event_id>/register', methods=['POST'])
 def register_for_event(event_id):
@@ -115,4 +116,60 @@ def register_for_event(event_id):
         return jsonify({"error": "Already registered for this event."}), 409
     finally:
         conn.close()
+
+@events.route('/api/events/<int:event_id>/attendance', methods=['POST'])
+def mark_attendance(event_id):
+    data = request.get_json()
+    user_id = data.get('user_id')
+    status = data.get('status')
+
+    if status not in ['Present', 'Absent']:
+        return jsonify({"error": "Invalid status. Use 'Present' or 'Absent'."}), 400
+
+    conn = sqlite3.connect("suems.db")
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+        INSERT INTO attendance (user_id, event_id, status)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id, event_id) DO UPDATE SET status = excluded.status, timestamp = CURRENT_TIMESTAMP
+        """, (user_id, event_id, status))
+        conn.commit()
+        return jsonify({"message": f"{status} marked for user {user_id}."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    finally:
+        conn.close()
+
+## viwe attendance logs
+@events.route('/api/events/<int:event_id>/attendance', methods=['GET'])
+def get_attendance_log(event_id):
+    conn = sqlite3.connect("suems.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT u.user_id, u.name, u.email, u.role, a.status, a.timestamp
+    FROM attendance a
+    JOIN users u ON a.user_id = u.user_id
+    WHERE a.event_id = ?
+    """, (event_id,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    attendance_list = []
+    for row in rows:
+        attendance_list.append({
+            "user_id": row[0],
+            "name": row[1],
+            "email": row[2],
+            "role": row[3],
+            "status": row[4],
+            "timestamp": row[5]
+        })
+
+    return jsonify(attendance_list)
+
+
+        
 
